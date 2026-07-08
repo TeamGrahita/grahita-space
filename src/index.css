@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", sans-serif;
+  --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Base Body Styles */
+body {
+  background-color: #0B0D1F;
+  color: #E2E5FF;
+  font-family: var(--font-sans);
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Genuine Glassmorphism Recipe */
+.glass-panel {
+  background: rgba(22, 26, 51, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.25);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel:hover {
+  border-color: rgba(0, 217, 160, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 16px 48px 0 rgba(0, 217, 160, 0.05);
+}
+
+.glass-panel-heavy {
+  background: rgba(22, 26, 51, 0.75);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top-color: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 16px 48px 0 rgba(0, 0, 0, 0.4);
+}
+
+.glass-navbar {
+  background: rgba(7, 8, 16, 0.65);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Floating organic background blobs */
+.ambient-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.12;
+  z-index: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+/* Custom Webkit scrollbars for high-fidelity elegant dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0D1F;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #33374F;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #282C4E;
+}
+
+/* Clean Custom Fade In Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Emergency pulse for Breathing & Emergency actions */
+@keyframes breathingPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 217, 160, 0.3);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 20px 8px rgba(0, 217, 160, 0.15);
+  }
+}
+
+.pulse-button {
+  animation: breathingPulse 4s ease-in-out infinite;
+}
