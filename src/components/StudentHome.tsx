@@ -185,7 +185,7 @@ export const StudentHome: React.FC<StudentHomeProps> = ({ setActiveTab }) => {
             <div className="flex flex-wrap gap-2.5">
               {/* Instagram */}
               <a
-                href="https://instagram.com"
+                href="https://www.instagram.com/grahita.space"
                 target="_blank"
                 rel="noreferrer"
                 className="px-4 py-2 bg-[#282C4E]/40 hover:bg-[#00D9A0] hover:text-[#00281C] text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-200 cursor-pointer shadow-sm"
@@ -196,7 +196,7 @@ export const StudentHome: React.FC<StudentHomeProps> = ({ setActiveTab }) => {
 
               {/* TikTok */}
               <a
-                href="https://tiktok.com"
+                href="https://www.tiktok.com/@grahita.space"
                 target="_blank"
                 rel="noreferrer"
                 className="px-4 py-2 bg-[#282C4E]/40 hover:bg-[#00D9A0] hover:text-[#00281C] text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-200 cursor-pointer shadow-sm"
@@ -207,7 +207,7 @@ export const StudentHome: React.FC<StudentHomeProps> = ({ setActiveTab }) => {
 
               {/* YouTube */}
               <a
-                href="https://youtube.com"
+                href="https://www.youtube.com/@GrahitaSpace"
                 target="_blank"
                 rel="noreferrer"
                 className="px-4 py-2 bg-[#282C4E]/40 hover:bg-[#00D9A0] hover:text-[#00281C] text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-200 cursor-pointer shadow-sm"
@@ -218,7 +218,7 @@ export const StudentHome: React.FC<StudentHomeProps> = ({ setActiveTab }) => {
 
               {/* Email */}
               <a
-                href="mailto:team@grahita.space"
+                href="mailto:gr4hita@gmail.com"
                 className="px-4 py-2 bg-[#282C4E]/40 hover:bg-[#00D9A0] hover:text-[#00281C] text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-200 cursor-pointer shadow-sm"
               >
                 <Mail className="w-4 h-4 text-[#00D9A0]" />
