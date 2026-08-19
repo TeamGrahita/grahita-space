@@ -2,15 +2,16 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-// Firebase configuration for Grahita Space (project: grahita-space-4638f)
+// Firebase configuration — values are loaded from environment variables.
+// Copy .env.example to .env and fill in your real values. Never commit .env to git.
 const firebaseConfig = {
-  apiKey: "AIzaSyBCVZXJFz87PaDZWdPSG6wCtoxieFRlg20",
-  authDomain: "grahita-space-4638f.firebaseapp.com",
-  projectId: "grahita-space-4638f",
-  storageBucket: "grahita-space-4638f.firebasestorage.app",
-  messagingSenderId: "379355924686",
-  appId: "1:379355924686:web:f95535b10a1062128aa89f",
-  measurementId: "G-E41MYPCWCK"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 export const app = initializeApp(firebaseConfig);

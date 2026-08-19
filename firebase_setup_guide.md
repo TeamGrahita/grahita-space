@@ -73,9 +73,9 @@ The admin account is automatically seeded when the Firestore `users` collection 
 | Field | Type | Value |
 |-------|------|-------|
 | `username` | string | `admin` |
-| `email` | string | `gr4hita@gmail.com` |
+| `email` | string | `<your-admin-email>` |
 | `fullName` | string | `Administrator Grahita` |
-| `password` | string | `tenangajadakenV45` |
+| `password` | string | `<your-admin-password>` |
 | `role` | string | `admin` |
 | `createdAt` | string | `2026-07-08T00:00:00.000Z` |
 
@@ -86,9 +86,9 @@ The admin account is automatically seeded when the Firestore `users` collection 
 Check that your Firebase project settings match what's in `src/lib/firebase.ts`:
 
 1. Firebase Console → ⚙️ **Project Settings** → **Your apps** → Web app
-2. Confirm these match:
-   - `apiKey`: `AIzaSyBCVZXJFz87PaDZWdPSG6wCtoxieFRlg20`
-   - `projectId`: `grahita-space-4638f`
+2. Confirm these match the values in your `.env` file:
+   - `apiKey`: *(from `VITE_FIREBASE_API_KEY` in your `.env`)*
+   - `projectId`: *(from `VITE_FIREBASE_PROJECT_ID` in your `.env`)*
    - `authDomain`: `grahita-space-4638f.firebaseapp.com`
 
 ---

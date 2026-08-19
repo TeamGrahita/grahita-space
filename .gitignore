@@ -32,3 +32,6 @@ server.cjs
 
 # Vercel local dev
 .vercel
+
+# Firebase config files with real credentials
+firebase-applet-config.json
