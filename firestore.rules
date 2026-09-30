@@ -4,79 +4,150 @@ service cloud.firestore {
 
     // ============================================================
     // HELPER FUNCTIONS
+    // Identity comes from Firebase Auth. Each signed-in user has a
+    // profile at users/{uid} (no password) that holds role/username.
     // ============================================================
 
-    // Check if request is made by an authenticated user
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Check if the caller is the admin (by email)
+    // Admin is identified by a verified email (Google sign-in is verified),
+    // never by a role field a user could write themselves.
     function isAdmin() {
       return isAuthenticated() &&
-        request.auth.token.email == "gr4hita@gmail.com";
+        request.auth.token.email == "gr4hita@gmail.com" &&
+        request.auth.token.email_verified == true;
     }
 
-    // Check if the caller's UID matches the target document
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function profilePath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasProfile() {
+      return isAuthenticated() && exists(profilePath());
+    }
+
+    function profile() {
+      return get(profilePath()).data;
+    }
+
+    function hasRole(role) {
+      return hasProfile() && profile().role == role;
+    }
+
+    function isStudentOwner(studentId) {
+      return hasRole("siswa") && profile().username == studentId;
+    }
+
+    function isParentOf(studentId) {
+      return hasRole("orang_tua") && profile().get("childUsername", "") == studentId;
+    }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function legacyUserPath(username) {
+      return /databases/$(database)/documents/users/$(username);
     }
 
     // ============================================================
     // USERS COLLECTION
-    // Rules: Users can read/write their own profile. Admin can do all.
-    // NOTE: This collection uses username (not Firebase UID) as document ID
-    // for the custom Firestore-based auth system. Because of this hybrid
-    // auth approach (where Firebase Auth UID ≠ Firestore doc ID), we allow
-    // broader read access to support the login lookup flow.
+    //   users/{uid}       — profile of a Firebase Auth user (no password)
+    //   users/{username}  — LEGACY account with a plaintext `password`.
+    //                        Readable so it can be migrated to Firebase
+    //                        Auth on first login, then deleted by its owner.
     // ============================================================
     match /users/{userId} {
-      // Allow read for login lookup (email/username query during login)
-      allow read: if true;
-      // Allow write only for the admin or the user themselves (by username match)
-      allow write: if isAdmin() || (isAuthenticated() && request.auth.token.email != null);
+      allow get: if isAdmin()
+        || (isAuthenticated() && request.auth.uid == userId)
+        || resource == null
+        || ("password" in resource.data);
+      allow list: if isAdmin();
+
+      // A user may create only their own profile, without a password field,
+      // with a non-admin role and a username they claimed in the same batch.
+      allow create: if isAdmin() || (
+        isAuthenticated() &&
+        request.auth.uid == userId &&
+        !("password" in request.resource.data) &&
+        request.resource.data.role in ["siswa", "guru_bk", "orang_tua"] &&
+        getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.uid == userId
+      );
+
+      // Role, username and child link cannot be changed by the user afterwards.
+      allow update: if isAdmin() || (
+        isAuthenticated() &&
+        request.auth.uid == userId &&
+        !("password" in resource.data) &&
+        onlyChanges(["fullName", "preferredLanguage"])
+      );
+
+      // Owners delete their legacy (password) document once migrated.
+      allow delete: if isAdmin() || (
+        isAuthenticated() &&
+        ("password" in resource.data) &&
+        resource.data.email == request.auth.token.email
+      );
     }
 
     // ============================================================
-    // STUDENTS COLLECTION
-    // Rules:
-    //   - A student can only read/write their own profile
-    //   - A guru_bk (counselor) can read any student + write counselorNotes
-    //   - A parent can only read the linked child's profile
-    //   - Admin can do everything
+    // USERNAMES COLLECTION — usernames/{username} = { uid, email }
+    // Public lookup so people can log in with a username.
+    // ============================================================
+    match /usernames/{username} {
+      allow get: if true;
+      allow list: if isAdmin();
+
+      // Claiming a username that still belongs to a legacy account is only
+      // allowed for the owner of that legacy account (same email).
+      allow create: if isAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.email == request.auth.token.email &&
+        (!exists(legacyUserPath(username)) ||
+          get(legacyUserPath(username)).data.get("email", "") == request.auth.token.email)
+      );
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.uid == request.auth.uid);
+    }
+
+    // ============================================================
+    // STUDENTS COLLECTION — students/{username}
+    //   - siswa: own profile; may update biometrics, band status, questionnaires
+    //   - guru_bk: all students; may add notes and use the band simulator
+    //   - orang_tua: linked child only; may use the band simulator
+    //   - admin: everything
     // ============================================================
     match /students/{studentId} {
-      // Admin has full access
-      allow read, write: if isAdmin();
+      allow read: if isAdmin()
+        || hasRole("guru_bk")
+        || isStudentOwner(studentId)
+        || isParentOf(studentId);
 
-      // Students can read/write their own data
-      allow read, write: if isAuthenticated();
+      allow create: if isAdmin() || hasRole("guru_bk") || isStudentOwner(studentId);
 
-      // Allow broad read during development — tighten once Firebase Auth
-      // is fully integrated with role claims in the token
-      allow read: if true;
+      allow update: if isAdmin()
+        || (isStudentOwner(studentId) && onlyChanges(["biometricsHistory", "isConnected", "questionnaires"]))
+        || (hasRole("guru_bk") && onlyChanges(["counselorNotes", "biometricsHistory", "isConnected"]))
+        || (isParentOf(studentId) && onlyChanges(["biometricsHistory", "isConnected"]));
+
+      allow delete: if isAdmin();
     }
 
     // ============================================================
     // BOOKINGS COLLECTION
-    // Rules: Authenticated users can create bookings. Admin can manage all.
+    // A student sees and creates only their own bookings.
     // ============================================================
     match /bookings/{bookingId} {
-      allow read: if isAuthenticated() || isAdmin();
-      allow create: if isAuthenticated();
+      allow read: if isAdmin()
+        || hasRole("guru_bk")
+        || (hasProfile() && resource.data.get("studentUsername", "") == profile().username);
+      allow create: if hasRole("siswa") && request.resource.data.studentUsername == profile().username;
       allow update, delete: if isAdmin();
     }
 
-    // ============================================================
-    // DEFAULT CATCH-ALL
-    // Deny everything else by default. This is secure-by-default.
-    // Remove the permissive rule below before going to production.
-    // ============================================================
-    match /{document=**} {
-      // TODO: Remove this permissive rule once role-based Firebase Auth
-      // claims are fully implemented. For now, allow authenticated reads
-      // to support the hybrid auth system.
-      allow read, write: if isAuthenticated();
-    }
+    // Everything else is denied by default.
   }
 }

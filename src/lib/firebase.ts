@@ -1,6 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, disableNetwork } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { initializeApp, getApps } from "firebase/app";
+import { getFirestore, disableNetwork, connectFirestoreEmulator } from "firebase/firestore";
+import { getAuth, initializeAuth, inMemoryPersistence, connectAuthEmulator, Auth } from "firebase/auth";
 
 // Firebase configuration — values are loaded from environment variables.
 // Copy .env.example to .env and fill in your real values. Never commit .env to git.
@@ -44,3 +44,27 @@ if (!isFirebaseConfigured) {
 
 // Firebase Authentication
 export const auth = getAuth(app);
+
+// Local Firebase Emulator Suite (`firebase emulators:start --only auth,firestore`)
+const useEmulators = isFirebaseConfigured && env.VITE_USE_FIREBASE_EMULATORS === "true";
+if (useEmulators) {
+  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+}
+
+// The admin is identified by this (verified) email, both here and in firestore.rules.
+export const ADMIN_EMAIL = "gr4hita@gmail.com";
+
+// A second Auth instance lets the admin create accounts for other people
+// without being signed out of their own session (createUser signs the new user in).
+let secondaryAuth: Auth | null = null;
+export function getSecondaryAuth(): Auth {
+  if (!secondaryAuth) {
+    const secondaryApp = getApps().find((a) => a.name === "secondary") || initializeApp(firebaseConfig, "secondary");
+    secondaryAuth = initializeAuth(secondaryApp, { persistence: inMemoryPersistence });
+    if (useEmulators) {
+      connectAuthEmulator(secondaryAuth, "http://127.0.0.1:9099", { disableWarnings: true });
+    }
+  }
+  return secondaryAuth;
+}
