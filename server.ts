@@ -35,9 +35,10 @@ function getAiClient() {
 
 // AI Chat Endpoint
 app.post("/api/chat", async (req, res) => {
-  const { message, lang = "id", history = [] } = req.body;
+  const { message, lang = "id" } = req.body || {};
+  const history = Array.isArray(req.body?.history) ? req.body.history : [];
 
-  if (!message) {
+  if (!message || typeof message !== "string") {
     return res.status(400).json({ error: "Message is required." });
   }
 

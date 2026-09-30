@@ -20,7 +20,8 @@ export const GrahitaSimulator: React.FC = () => {
   const studentProfile = students[targetStudentUsername];
   if (!studentProfile) return null;
 
-  const currentReading = studentProfile.biometricsHistory[studentProfile.biometricsHistory.length - 1];
+  const history = studentProfile.biometricsHistory || [];
+  const currentReading = history[history.length - 1];
   const t = translations[lang];
 
   // Presets

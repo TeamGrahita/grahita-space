@@ -31,6 +31,7 @@ export const ParentDashboard: React.FC = () => {
   }
 
   const history = childProfile.biometricsHistory || [];
+  const grades = childProfile.grades || [];
   const latestBiometric = history[history.length - 1];
   const isConnected = childProfile.isConnected;
 
@@ -141,7 +142,7 @@ export const ParentDashboard: React.FC = () => {
             </span>
             <div className="flex items-baseline gap-2 mt-2">
               <span className="text-4xl md:text-5xl font-extrabold text-white font-display tracking-tight">
-                {(childProfile.grades.reduce((sum, g) => sum + g.grade, 0) / childProfile.grades.length).toFixed(1)}
+                {grades.length > 0 ? (grades.reduce((sum, g) => sum + g.grade, 0) / grades.length).toFixed(1) : "-"}
               </span>
               <span className="text-sm font-semibold text-[#8C90AC]">/ 100</span>
             </div>
@@ -177,7 +178,7 @@ export const ParentDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#33374F]/20">
-                {childProfile.grades.map((g, idx) => (
+                {grades.map((g, idx) => (
                   <tr key={idx} className="hover:bg-[#1E2240]/40 transition-colors">
                     <td className="py-3 font-semibold text-white">
                       {lang === "id" ? g.subjectNameId : g.subjectNameEn}

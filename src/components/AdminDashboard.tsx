@@ -67,9 +67,12 @@ export const AdminDashboard: React.FC = () => {
       (snapshot) => {
         const usersList: any[] = [];
         snapshot.forEach((doc) => {
+          const data = doc.data();
           usersList.push({
             id: doc.id,
-            ...doc.data()
+            ...data,
+            // Older or hand-made docs may lack a username; fall back to the doc id so sorting/search don't crash
+            username: data.username || doc.id
           });
         });
         // Sort by createdAt or username

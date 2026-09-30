@@ -32,6 +32,9 @@ export const CounselorDashboard: React.FC = () => {
   );
 
   const activeStudent = students[selectedUsername];
+  const activeGrades = activeStudent?.grades || [];
+  const activeHistory = activeStudent?.biometricsHistory || [];
+  const activeQuestionnaires = activeStudent?.questionnaires || [];
 
   const handleSendSuggestion = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,22 +198,22 @@ export const CounselorDashboard: React.FC = () => {
                   <span className="text-[10px] font-mono text-[#8C90AC] tracking-wider uppercase">Active Diagnostic</span>
                   <h3 className="text-xl font-bold text-white font-display">{activeStudent.fullName}</h3>
                   <div className="flex gap-4 items-center mt-1 text-xs text-[#8C90AC]">
-                    <span>Grades Avg: <strong className="text-white">{(activeStudent.grades.reduce((sum, g) => sum + g.grade, 0) / activeStudent.grades.length).toFixed(1)}</strong></span>
+                    <span>Grades Avg: <strong className="text-white">{activeGrades.length > 0 ? (activeGrades.reduce((sum, g) => sum + g.grade, 0) / activeGrades.length).toFixed(1) : "-"}</strong></span>
                     <span>•</span>
                     <span>Grahita Band: <strong className={activeStudent.isConnected ? "text-[#00D9A0]" : "text-[#8C90AC]"}>{activeStudent.isConnected ? "CONNECTED" : "OFFLINE"}</strong></span>
                   </div>
                 </div>
 
-                {activeStudent.isConnected && activeStudent.biometricsHistory.length > 0 && (
+                {activeStudent.isConnected && activeHistory.length > 0 && (
                   <div className="p-3 bg-white/5 border border-white/10 rounded-xl flex items-center gap-3">
                     <div className="text-center">
                       <span className="text-[9px] text-[#8C90AC] uppercase font-mono block">BPM</span>
-                      <strong className="text-lg text-white font-mono">{activeStudent.biometricsHistory[activeStudent.biometricsHistory.length - 1].bpm}</strong>
+                      <strong className="text-lg text-white font-mono">{activeHistory[activeHistory.length - 1].bpm}</strong>
                     </div>
                     <div className="w-px h-8 bg-white/10" />
                     <div className="text-center">
                       <span className="text-[9px] text-[#8C90AC] uppercase font-mono block">HRV</span>
-                      <strong className="text-lg text-white font-mono">{activeStudent.biometricsHistory[activeStudent.biometricsHistory.length - 1].hrv}</strong>
+                      <strong className="text-lg text-white font-mono">{activeHistory[activeHistory.length - 1].hrv}</strong>
                     </div>
                   </div>
                 )}
@@ -227,7 +230,7 @@ export const CounselorDashboard: React.FC = () => {
                     ? "Mengurutkan mata pelajaran siswa dari yang paling membebani kognitif (Overload) hingga yang paling fokus/stabil (Optimal)." 
                     : "Ranking the student's subjects from the highest cognitive overload level down to the most focused/optimal."}
                 </p>
-                {renderSubjectRankChart(activeStudent.grades)}
+                {renderSubjectRankChart(activeGrades)}
               </div>
 
               {/* Questionnaire History and Form */}
@@ -241,13 +244,12 @@ export const CounselorDashboard: React.FC = () => {
                   </h4>
 
                   <div className="flex-grow space-y-3 overflow-y-auto max-h-56 pr-1">
-                    {activeStudent.questionnaires.length === 0 ? (
+                    {activeQuestionnaires.length === 0 ? (
                       <div className="text-center py-10 text-xs text-[#8C90AC] italic">
                         {lang === "id" ? "Siswa belum mengisi kuesioner akhir-akhir ini." : "No questionnaire submissions logged recently."}
                       </div>
                     ) : (
-                      activeStudent.questionnaires.map((q, idx) => {
-                        const scoreMoods = ["😭", "😞", "😐", "🙂", "😊"];
+                      activeQuestionnaires.map((q, idx) => {
                         const moodEmoji = q.emojiScore <= 2 ? "😭" : q.emojiScore <= 4 ? "😞" : q.emojiScore <= 6 ? "😐" : q.emojiScore <= 8 ? "🙂" : "😊";
                         return (
                           <div key={idx} className="p-3 bg-white/5 border border-white/10 rounded-xl space-y-1.5 text-xs">

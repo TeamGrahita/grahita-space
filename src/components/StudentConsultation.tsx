@@ -4,8 +4,11 @@ import { translations } from "../lib/translations";
 import { CalendarDays, UserCheck, Clock, BookmarkCheck, CheckCircle2, AlertCircle } from "lucide-react";
 
 export const StudentConsultation: React.FC = () => {
-  const { lang, bookings, bookConsultation } = useApp();
+  const { lang, currentUser, bookings, bookConsultation } = useApp();
   const t = translations[lang];
+
+  // Only show the logged-in student's own bookings (notes may contain private complaints)
+  const myBookings = bookings.filter(bk => bk.studentUsername === currentUser?.username);
 
   const [expert, setExpert] = useState("dr_aditya");
   const [date, setDate] = useState("");
@@ -139,14 +142,14 @@ export const StudentConsultation: React.FC = () => {
           </div>
 
           <div className="flex-grow space-y-3 my-5 overflow-y-auto max-h-80 pr-1">
-            {bookings.length === 0 ? (
+            {myBookings.length === 0 ? (
               <div className="text-center py-12 text-xs text-[#8C90AC] flex flex-col items-center justify-center gap-2 border border-dashed border-[#33374F] rounded-xl">
                 <BookmarkCheck className="w-8 h-8 text-[#8C90AC]/40" />
                 <span>{t.consult.noBookings}</span>
               </div>
             ) : (
-              bookings.map((bk, i) => (
-                <div key={i} className="p-3.5 bg-[#12142A] border border-[#33374F]/50 rounded-xl space-y-2 hover:border-[#00D9A0]/20 transition-all">
+              myBookings.map((bk) => (
+                <div key={bk.id} className="p-3.5 bg-[#12142A] border border-[#33374F]/50 rounded-xl space-y-2 hover:border-[#00D9A0]/20 transition-all">
                   <div className="flex justify-between items-start">
                     <span className="text-xs font-bold text-white leading-tight">
                       {bk.expertName}

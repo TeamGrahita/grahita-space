@@ -9,7 +9,7 @@ import {
   CounselorNote,
   UserRole
 } from "../types";
-import { db, auth } from "../lib/firebase";
+import { db, auth, isFirebaseConfigured } from "../lib/firebase";
 import { 
   collection, 
   doc, 
@@ -205,9 +205,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 2. Load current user from localStorage
     const savedUser = localStorage.getItem("grahita_current_user");
     if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setCurrentUser(parsedUser);
-      setLang(parsedUser.preferredLanguage || "id");
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setCurrentUser(parsedUser);
+        setLang(parsedUser.preferredLanguage || "id");
+      } catch (err) {
+        console.error("Failed to parse saved user, clearing session:", err);
+        localStorage.removeItem("grahita_current_user");
+      }
     }
 
     // 2b. Initialize students & bookings state immediately (offline-first fallback)
@@ -232,21 +237,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    // Without Firebase credentials, stay on the local (localStorage/seed) data only
+    if (!isFirebaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
     // 3. Setup real-time Firestore listener for student profiles
     const unsubscribeStudents = onSnapshot(
-      collection(db, "students"), 
+      collection(db, "students"),
       async (snapshot) => {
         try {
           if (snapshot.empty) {
+            // An empty snapshot served from the offline cache says nothing about the server;
+            // seeding here would overwrite real server data once the client reconnects.
+            if (snapshot.metadata.fromCache) {
+              setLoading(false);
+              return;
+            }
             console.log("Firestore students collection is empty. Seeding initial student profiles...");
             const seeded = getSeededStudents();
+            setStudents(seeded);
+            localStorage.setItem("grahita_students", JSON.stringify(seeded));
+            setLoading(false);
             const batch = writeBatch(db);
             Object.keys(seeded).forEach(username => {
               batch.set(doc(db, "students", username), seeded[username]);
             });
             await batch.commit();
-            setStudents(seeded);
-            localStorage.setItem("grahita_students", JSON.stringify(seeded));
           } else {
             const studentsData: Record<string, StudentProfile> = {};
             snapshot.forEach((doc) => {
@@ -293,7 +311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       collection(db, "users"),
       async (snapshot) => {
         try {
-          if (snapshot.empty) {
+          if (snapshot.empty && !snapshot.metadata.fromCache) {
             console.log("Firestore users collection is empty. Seeding default demo accounts...");
             const batch = writeBatch(db);
             const defaultUsers = {
@@ -415,7 +433,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const s = students[targetUsername];
       
       if (s && s.isConnected) {
-        const history = [...s.biometricsHistory];
+        const history = [...(s.biometricsHistory || [])];
         const last = history[history.length - 1];
         
         let newBpm = last ? last.bpm : 75;
@@ -449,6 +467,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...s,
           biometricsHistory: history
         };
+
+        // Update local state too, so the live stream keeps moving when Firestore is offline or rejects the write
+        setStudents(prev => {
+          const updated = {
+            ...prev,
+            [targetUsername]: updatedStudent
+          };
+          localStorage.setItem("grahita_students", JSON.stringify(updated));
+          return updated;
+        });
 
         try {
           await setDoc(doc(db, "students", targetUsername), updatedStudent);
@@ -722,7 +750,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updatedStudent = {
       ...target,
-      questionnaires: [newQ, ...target.questionnaires]
+      questionnaires: [newQ, ...(target.questionnaires || [])]
     };
 
     // Optimistically update local state immediately
@@ -756,7 +784,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updatedStudent = {
       ...target,
-      counselorNotes: [newNote, ...target.counselorNotes]
+      counselorNotes: [newNote, ...(target.counselorNotes || [])]
     };
 
     // Optimistically update local state immediately
@@ -786,6 +814,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes,
       timestamp: new Date().toISOString()
     };
+    // Firestore rejects undefined fields, so only attach the owner when known
+    if (currentUser?.username) {
+      newBooking.studentUsername = currentUser.username;
+    }
 
     // Optimistically update local state immediately
     setBookings(prev => {
@@ -833,7 +865,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = students[studentUsername];
     if (!target) return;
 
-    const history = [...target.biometricsHistory];
+    const history = [...(target.biometricsHistory || [])];
     if (history.length > 30) {
       history.shift();
     }
