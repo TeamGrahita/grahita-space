@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AppProvider, useApp } from "./context/AppContext";
+import { AppProvider, useApp, DemoAccount } from "./context/AppContext";
 import { Navbar } from "./components/Navbar";
 import { GrahitaSimulator } from "./components/GrahitaSimulator";
 import { StudentHome } from "./components/StudentHome";
@@ -13,6 +13,7 @@ import { CounselorDashboard } from "./components/CounselorDashboard";
 import { ParentDashboard } from "./components/ParentDashboard";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { translations } from "./lib/translations";
+import { isFirebaseConfigured } from "./lib/firebase";
 import { UserRole } from "./types";
 import { 
   Lock, 
@@ -32,7 +33,7 @@ import {
 } from "lucide-react";
 
 const AppContent: React.FC = () => {
-  const { currentUser, lang, login, register, loading } = useApp();
+  const { currentUser, lang, login, loginDemo, loginWithGoogle, register, loading } = useApp();
   const t = translations[lang];
 
   // Auth local states
@@ -87,11 +88,16 @@ const AppContent: React.FC = () => {
         );
         if (registeredUser) {
           setStudentTab("home");
+          // After logout the person should see the login form, not the sign-up form again
+          setIsRegister(false);
+          setPassword("");
         }
       } else {
         const loggedUser = await login(username.trim().toLowerCase(), password.trim(), selectedRole);
         if (loggedUser) {
           setStudentTab("home");
+          // Do not leave the password in the form for the next person on a shared device
+          setPassword("");
         }
       }
     } catch (err: any) {
@@ -101,11 +107,24 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleQuickLogin = async (user: string, role: UserRole | "admin") => {
+  const handleQuickLogin = async (account: DemoAccount) => {
     setIsSubmitting(true);
     setAuthError("");
     try {
-      await login(user, user, role);
+      await loginDemo(account);
+      setStudentTab("home");
+    } catch (err: any) {
+      setAuthError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsSubmitting(true);
+    setAuthError("");
+    try {
+      await loginWithGoogle();
       setStudentTab("home");
     } catch (err: any) {
       setAuthError(err.message);
@@ -215,7 +234,7 @@ const AppContent: React.FC = () => {
                 </div>
                 {selectedRole === "admin" && (
                   <p className="text-[10px] text-rose-400/80 px-1">
-                    {lang === "id" ? "Masukkan email & password admin Anda." : "Enter your admin email & password."}
+                    {lang === "id" ? "Admin masuk menggunakan tombol Google di bawah." : "The admin signs in with the Google button below."}
                   </p>
                 )}
               </div>
@@ -305,7 +324,7 @@ const AppContent: React.FC = () => {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={isRegister ? (lang === "id" ? "Minimal 6 karakter" : "At least 6 characters") : "••••••••"}
                     className="w-full pl-9 pr-4 py-2 bg-[#12142A]/80 border border-[#33374F]/80 focus:border-[#00D9A0] focus:ring-1 focus:ring-[#00D9A0]/20 text-xs text-white rounded-xl placeholder-[#8C90AC]/40 outline-none transition-all"
                     disabled={isSubmitting}
                   />
@@ -328,6 +347,18 @@ const AppContent: React.FC = () => {
                 )}
               </button>
             </form>
+
+            {/* Google sign-in (the admin account uses this) */}
+            {isFirebaseConfigured && !isRegister && (
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={isSubmitting}
+                className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                {lang === "id" ? "Masuk dengan Google" : "Sign in with Google"}
+              </button>
+            )}
 
             {/* Switch Auth mode link */}
             <div className="text-center pt-2.5 border-t border-[#33374F]/40 text-xs text-[#8C90AC]">
@@ -355,15 +386,15 @@ const AppContent: React.FC = () => {
               </span>
               <div className="flex flex-col gap-1.5">
                 <button
-                  onClick={() => handleQuickLogin("admin", "admin")}
+                  onClick={() => handleQuickLogin("admin")}
                   disabled={isSubmitting}
                   className="w-full py-1.5 bg-rose-500/[0.03] hover:bg-rose-500/10 border border-rose-500/20 hover:border-rose-500/40 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs text-white hover:text-rose-400 font-medium text-left px-3 flex items-center justify-between transition-all cursor-pointer"
                 >
-                  <span className="font-bold flex items-center gap-1.5">👑 {lang === "id" ? "Panel Kontrol Admin" : "Admin Panel"}</span>
+                  <span className="font-bold flex items-center gap-1.5">👑 {lang === "id" ? "Panel Kontrol Admin" : "Admin Panel"}{isFirebaseConfigured && <span className="font-normal text-[10px] text-[#8C90AC]">(Google)</span>}</span>
                   <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">Admin</span>
                 </button>
                 <button
-                  onClick={() => handleQuickLogin("siswa", "siswa")}
+                  onClick={() => handleQuickLogin("siswa")}
                   disabled={isSubmitting}
                   className="w-full py-1.5 bg-[#282C4E]/20 hover:bg-[#00D9A0]/10 border border-[#33374F] hover:border-[#00D9A0]/30 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs text-white hover:text-[#00D9A0] font-medium text-left px-3 flex items-center justify-between transition-all cursor-pointer"
                 >
@@ -371,7 +402,7 @@ const AppContent: React.FC = () => {
                   <span className="text-[10px] text-[#8C90AC]">Role: Siswa</span>
                 </button>
                 <button
-                  onClick={() => handleQuickLogin("guru", "guru_bk")}
+                  onClick={() => handleQuickLogin("guru")}
                   disabled={isSubmitting}
                   className="w-full py-1.5 bg-[#282C4E]/20 hover:bg-[#00D9A0]/10 border border-[#33374F] hover:border-[#00D9A0]/30 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs text-white hover:text-[#00D9A0] font-medium text-left px-3 flex items-center justify-between transition-all cursor-pointer"
                 >
@@ -379,7 +410,7 @@ const AppContent: React.FC = () => {
                   <span className="text-[10px] text-[#8C90AC]">Role: Guru BK</span>
                 </button>
                 <button
-                  onClick={() => handleQuickLogin("orangtua", "orang_tua")}
+                  onClick={() => handleQuickLogin("orangtua")}
                   disabled={isSubmitting}
                   className="w-full py-1.5 bg-[#282C4E]/20 hover:bg-[#00D9A0]/10 border border-[#33374F] hover:border-[#00D9A0]/30 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs text-white hover:text-[#00D9A0] font-medium text-left px-3 flex items-center justify-between transition-all cursor-pointer"
                 >

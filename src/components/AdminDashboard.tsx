@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
-import { db } from "../lib/firebase";
+import { db, getSecondaryAuth, ADMIN_EMAIL } from "../lib/firebase";
 import { 
   collection, 
   onSnapshot, 
   doc, 
-  deleteDoc, 
+  getDoc,
   setDoc,
+  updateDoc,
   writeBatch
 } from "firebase/firestore";
+import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { 
   Users, 
   Mail, 
@@ -67,12 +69,15 @@ export const AdminDashboard: React.FC = () => {
       (snapshot) => {
         const usersList: any[] = [];
         snapshot.forEach((doc) => {
-          const data = doc.data();
+          // Never keep a legacy plaintext password in UI state
+          const { password, ...data } = doc.data();
           usersList.push({
             id: doc.id,
             ...data,
             // Older or hand-made docs may lack a username; fall back to the doc id so sorting/search don't crash
-            username: data.username || doc.id
+            username: data.username || doc.id,
+            // Pre-Firebase-Auth account that still stores a plaintext password
+            isLegacy: password !== undefined
           });
         });
         // Sort by createdAt or username
@@ -96,7 +101,7 @@ export const AdminDashboard: React.FC = () => {
   // Sync selected user when users or students update
   useEffect(() => {
     if (selectedUser) {
-      const updated = users.find(u => u.username === selectedUser.username);
+      const updated = users.find(u => u.id === selectedUser.id);
       if (updated) {
         setSelectedUser(updated);
       }
@@ -104,17 +109,27 @@ export const AdminDashboard: React.FC = () => {
   }, [users]);
 
   // Handle deleting a user from database
-  const handleDeleteUser = async (username: string, e: React.MouseEvent) => {
+  // Removes the Firestore profile and username claim. The Firebase Auth login itself can only be
+  // deleted from the Firebase Console (Authentication tab); without a profile it can no longer sign in.
+  const handleDeleteUser = async (user: any, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm(lang === "id" 
-      ? `Apakah Anda yakin ingin menghapus pengguna "${username}"?` 
-      : `Are you sure you want to delete user "${username}"?`)) {
+      ? `Apakah Anda yakin ingin menghapus pengguna "${user.username}"?` 
+      : `Are you sure you want to delete user "${user.username}"?`)) {
       return;
     }
 
     try {
-      await deleteDoc(doc(db, "users", username));
-      if (selectedUser?.username === username) {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, "users", user.id));
+      if (!user.isLegacy) {
+        const mapping = await getDoc(doc(db, "usernames", user.username));
+        if (mapping.exists() && mapping.data().uid === user.id) {
+          batch.delete(mapping.ref);
+        }
+      }
+      await batch.commit();
+      if (selectedUser?.id === user.id) {
         setSelectedUser(null);
       }
     } catch (err: any) {
@@ -138,15 +153,59 @@ export const AdminDashboard: React.FC = () => {
       return;
     }
 
-    // Check if username already exists
-    if (users.some(u => u.username === usernameClean)) {
-      setFormError(lang === "id" ? "Username sudah terdaftar!" : "Username already exists!");
+    if (!/^[a-z0-9_.-]{3,30}$/.test(usernameClean)) {
+      setFormError(lang === "id"
+        ? "Username 3-30 karakter: huruf kecil, angka, titik, garis bawah, atau strip."
+        : "Username must be 3-30 characters: lowercase letters, digits, dots, underscores or dashes.");
+      return;
+    }
+    if (pwdClean.length < 6) {
+      setFormError(lang === "id" ? "Password minimal 6 karakter." : "Password must be at least 6 characters.");
+      return;
+    }
+    if (emailClean === ADMIN_EMAIL) {
+      setFormError(lang === "id" ? "Email admin tidak bisa dipakai untuk akun lain." : "The admin email cannot be used for another account.");
       return;
     }
 
     try {
+      // Check if username already exists (new or legacy account)
+      const [mapping, legacy] = await Promise.all([
+        getDoc(doc(db, "usernames", usernameClean)),
+        getDoc(doc(db, "users", usernameClean))
+      ]);
+      if (mapping.exists() || legacy.exists()) {
+        setFormError(lang === "id" ? "Username sudah terdaftar!" : "Username already exists!");
+        return;
+      }
+
+      // Create the login on a secondary Auth instance so the admin stays signed in
+      const secondaryAuth = getSecondaryAuth();
+      const credential = await createUserWithEmailAndPassword(secondaryAuth, emailClean, pwdClean);
+      const uid = credential.user.uid;
+      const accountEmail = credential.user.email || emailClean;
+      await signOut(secondaryAuth);
+
+      // Save user profile (no password) and username claim
+      const userData: any = {
+        username: usernameClean,
+        email: accountEmail,
+        fullName: nameClean,
+        role: newRole,
+        createdAt: new Date().toISOString()
+      };
+
+      if (newRole === "orang_tua") {
+        userData.childUsername = newChildUsername.trim().toLowerCase() || "siswa";
+      }
+
+      const batch = writeBatch(db);
+      batch.set(doc(db, "users", uid), userData);
+      batch.set(doc(db, "usernames", usernameClean), { uid, email: accountEmail });
+      await batch.commit();
+
       // Seed a default student profile if the role is student
-      if (newRole === "siswa") {
+      if (newRole === "siswa" && !(await getDoc(doc(db, "students", usernameClean))).exists()) {
         const studentProfile: StudentProfile = {
           username: usernameClean,
           fullName: nameClean,
@@ -164,22 +223,6 @@ export const AdminDashboard: React.FC = () => {
         };
         await setDoc(doc(db, "students", usernameClean), studentProfile);
       }
-
-      // Save user record
-      const userData: any = {
-        username: usernameClean,
-        email: emailClean,
-        fullName: nameClean,
-        password: pwdClean,
-        role: newRole,
-        createdAt: new Date().toISOString()
-      };
-
-      if (newRole === "orang_tua") {
-        userData.childUsername = newChildUsername.trim().toLowerCase() || "siswa";
-      }
-
-      await setDoc(doc(db, "users", usernameClean), userData);
       
       setFormSuccess(lang === "id" ? "Pengguna berhasil ditambahkan!" : "User successfully registered!");
       
@@ -193,7 +236,10 @@ export const AdminDashboard: React.FC = () => {
       
       setTimeout(() => setShowAddUser(false), 1500);
     } catch (err: any) {
-      setFormError("Error registering user: " + err.message);
+      const message = err?.code === "auth/email-already-in-use"
+        ? (lang === "id" ? "Email ini sudah terdaftar pada akun lain." : "This email is already registered to another account.")
+        : err.message;
+      setFormError("Error registering user: " + message);
     }
   };
 
@@ -217,13 +263,10 @@ export const AdminDashboard: React.FC = () => {
       timestamp: new Date().toISOString()
     };
 
-    const updatedProfile = {
-      ...studentProfile,
-      counselorNotes: [note, ...(studentProfile.counselorNotes || [])]
-    };
-
     try {
-      await setDoc(doc(db, "students", studentUsername), updatedProfile);
+      await updateDoc(doc(db, "students", studentUsername), {
+        counselorNotes: [note, ...(studentProfile.counselorNotes || [])]
+      });
       setNoteSuccess(lang === "id" ? "Catatan bimbingan berhasil disimpan!" : "Counselor advice saved successfully!");
       setNewNoteText("");
       setTimeout(() => setNoteSuccess(""), 3000);
@@ -235,46 +278,16 @@ export const AdminDashboard: React.FC = () => {
   // Seed sample database for stress triage
   const handleResetAndSeedDatabase = async () => {
     if (!window.confirm(lang === "id" 
-      ? "Apakah Anda yakin ingin memulihkan database ke profil demo bawaan?" 
-      : "Are you sure you want to reset and seed the database with default demo accounts?")) {
+      ? "Apakah Anda yakin ingin memulihkan data siswa demo bawaan?" 
+      : "Are you sure you want to reset and seed the default demo student data?")) {
       return;
     }
 
     try {
       const batch = writeBatch(db);
       
-      // Default users
-      const defaultUsers: Record<string, any> = {
-        siswa: {
-          username: "siswa",
-          email: "siswa@grahita.id",
-          fullName: "Rian Aditya",
-          password: "siswa",
-          role: "siswa",
-          createdAt: "2026-06-25T14:30:00.000Z"
-        },
-        guru: {
-          username: "guru",
-          email: "indah@grahita.id",
-          fullName: "Ibu Indah, S.Psi",
-          password: "guru",
-          role: "guru_bk",
-          createdAt: "2026-06-26T09:15:00.000Z"
-        },
-        orangtua: {
-          username: "orangtua",
-          email: "budi@grahita.id",
-          fullName: "Pak Budi",
-          password: "orangtua",
-          role: "orang_tua",
-          childUsername: "siswa",
-          createdAt: "2026-06-27T11:45:00.000Z"
-        }
-      };
-
-      Object.keys(defaultUsers).forEach(username => {
-        batch.set(doc(db, "users", username), defaultUsers[username]);
-      });
+      // Accounts are not seeded here: logins live in Firebase Auth. The demo accounts
+      // are created on first use of the quick-login buttons.
 
       // Default Student Profiles
       const seededStudents: Record<string, StudentProfile> = {
@@ -552,10 +565,10 @@ export const AdminDashboard: React.FC = () => {
             ) : (
               <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                 {filteredUsers.map((user) => {
-                  const isSelected = selectedUser?.username === user.username;
+                  const isSelected = selectedUser?.id === user.id;
                   return (
                     <div
-                      key={user.username}
+                      key={user.id}
                       onClick={() => setSelectedUser(user)}
                       className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
                         isSelected 
@@ -573,6 +586,11 @@ export const AdminDashboard: React.FC = () => {
                             <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${getRoleBadgeColor(user.role)}`}>
                               {user.role}
                             </span>
+                            {user.isLegacy && (
+                              <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                Legacy
+                              </span>
+                            )}
                           </div>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-[10px] text-[#8C90AC] mt-1">
                             <span className="flex items-center gap-1 truncate">
@@ -590,8 +608,7 @@ export const AdminDashboard: React.FC = () => {
 
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button
-                          onClick={(e) => handleDeleteUser(user.username, e)}
-                          disabled={user.username === "admin"}
+                          onClick={(e) => handleDeleteUser(user, e)}
                           className="p-1.5 text-[#8C90AC] hover:text-[#F2545B] hover:bg-[#F2545B]/10 rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
                           title="Delete User"
                         >
@@ -654,8 +671,14 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 )}
                 <div className="flex justify-between py-1.5 border-b border-[#33374F]/20">
-                  <span className="text-[#8C90AC]">{lang === "id" ? "Kredensial" : "Demo Password"}</span>
-                  <span className="text-emerald-400 font-mono">"{selectedUser.password || "N/A"}"</span>
+                  <span className="text-[#8C90AC]">{lang === "id" ? "Status Akun" : "Account Status"}</span>
+                  {selectedUser.isLegacy ? (
+                    <span className="text-amber-400 text-right max-w-[180px]">
+                      {lang === "id" ? "Legacy — belum pindah ke Firebase Auth" : "Legacy — not yet on Firebase Auth"}
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400">Firebase Auth</span>
+                  )}
                 </div>
               </div>
 
@@ -880,7 +903,6 @@ export const AdminDashboard: React.FC = () => {
                   <option value="siswa">{lang === "id" ? "Siswa (Student)" : "Student (Siswa)"}</option>
                   <option value="guru_bk">{lang === "id" ? "Konselor BK (Counselor)" : "Counselor (Guru BK)"}</option>
                   <option value="orang_tua">{lang === "id" ? "Orang Tua (Parent)" : "Parent (Orang Tua)"}</option>
-                  <option value="admin">{lang === "id" ? "Admin" : "Admin"}</option>
                 </select>
               </div>
 

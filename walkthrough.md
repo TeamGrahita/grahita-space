@@ -23,12 +23,9 @@
 
 [App.tsx](file:///c:/Users/Atilla/OneDrive/Documents/Grahita-Space-Project-main/src/App.tsx) — Added 👑 Admin tab to the role selector grid
 
-[AppContext.tsx](file:///c:/Users/Atilla/OneDrive/Documents/Grahita-Space-Project-main/src/context/AppContext.tsx) — Admin user seeded in Firestore on first run:
-- **Email**: `gr4hita@gmail.com`  
-- **Password**: `tenangajadakenV45`
-- **Role**: `admin`
+The admin is the Google account `gr4hita@gmail.com`. Accounts now live in Firebase Auth; no password is stored in Firestore or in the code.
 
-**To log in as admin**: Select the 👑 **Admin** tab → enter `gr4hita@gmail.com` as username/email → enter your password → click Login.
+**To log in as admin**: click **Masuk dengan Google** (or the 👑 Admin quick-login button) and choose the `gr4hita@gmail.com` Google account.
 
 ### 🔥 Firebase Reconfiguration
 
@@ -103,7 +100,7 @@ See the **Firebase Setup Guide** artifact for detailed instructions:
 - Enable Firestore Database (default, not named)
 - Deploy `firestore.rules`  
 - Enable Authentication (Email/Password + Google)
-- Manually add admin user to Firestore `users` collection
+- No admin document is needed: the admin is recognised by the verified Google email
 
 ---
 
@@ -111,10 +108,10 @@ See the **Firebase Setup Guide** artifact for detailed instructions:
 
 | Role | Username/Email | Password |
 |------|---------------|----------|
-| 👑 Admin | `gr4hita@gmail.com` | `tenangajadakenV45` |
-| 📚 Student (demo) | `siswa` | `siswa` |
-| 👩‍💼 Counselor (demo) | `guru` | `guru` |
-| 👨‍👩‍👦 Parent (demo) | `orangtua` | `orangtua` |
+| 👑 Admin | Google sign-in with `gr4hita@gmail.com` | (Google account) |
+| 📚 Student (demo) | `siswa` | `siswa-demo` |
+| 👩‍💼 Counselor (demo) | `guru` | `guru-demo` |
+| 👨‍👩‍👦 Parent (demo) | `orangtua` | `orangtua-demo` |
 
 > [!WARNING]
-> The demo accounts use simple passwords and are fine for testing. For real production users, you should enforce stronger password requirements.
+> The demo passwords are in the client code, so anyone can use the demo accounts (including the demo counselor, who can read every student). Keep real student data out of a project that has the demo buttons enabled. The demo accounts are created automatically in Firebase Auth the first time each quick-login button is used.

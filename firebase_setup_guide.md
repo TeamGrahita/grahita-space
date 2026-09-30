@@ -48,7 +48,7 @@ firebase deploy --only firestore:rules
    - For Google Sign-in, make sure to add your OAuth consent screen in Google Cloud Console
 
 > [!NOTE]
-> The app currently uses a **custom Firestore-based auth** (stores passwords in Firestore) rather than Firebase Auth's email/password system. Firebase Auth is used only for Google OAuth login. This is by design from the original AI Studio build.
+> All logins use **Firebase Authentication**. Firestore only stores profiles (`users/{uid}`, no passwords) and username lookups (`usernames/{username}`). Accounts from the old version (Firestore documents with a `password` field) are moved to Firebase Auth automatically the first time their owner logs in with their username, and the old document is deleted. Old passwords shorter than 6 characters cannot be migrated; the admin must recreate those accounts.
 
 ---
 
@@ -61,23 +61,11 @@ For Google Sign-in to work on your Vercel domain:
 
 ---
 
-## Step 5 — Seed Admin User in Firestore
+## Step 5 — Admin Account
 
-The admin account is automatically seeded when the Firestore `users` collection is empty. However, to manually add/verify it:
+No admin document is needed. The admin is whoever signs in with **Google** as `gr4hita@gmail.com` (the rules require a verified email, which Google sign-ins have).
 
-1. In Firestore → **Data** tab
-2. Go to **users** collection (create it if it doesn't exist)
-3. Add a document with ID: `admin`
-4. Add these fields:
-
-| Field | Type | Value |
-|-------|------|-------|
-| `username` | string | `admin` |
-| `email` | string | `<your-admin-email>` |
-| `fullName` | string | `Administrator Grahita` |
-| `password` | string | `<your-admin-password>` |
-| `role` | string | `admin` |
-| `createdAt` | string | `2026-07-08T00:00:00.000Z` |
+After the first admin login, open the Admin panel and delete every account marked **Legacy** that will not be migrated (for example the old `admin` and `budi` documents). Legacy documents still hold plaintext passwords and stay publicly readable until they are migrated or deleted. Change any password that was ever stored there.
 
 ---
 
@@ -99,5 +87,5 @@ Check that your Firebase project settings match what's in `src/lib/firebase.ts`:
 - [ ] Firestore Rules published from `firestore.rules`
 - [ ] Authentication enabled (Email/Password + Google)
 - [ ] Authorized domains include your Vercel URL
-- [ ] Admin user document created in Firestore `users` collection
+- [ ] Admin signed in once with Google and deleted unused **Legacy** accounts
 - [ ] Firebase project settings match `src/lib/firebase.ts`
