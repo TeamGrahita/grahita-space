@@ -27,7 +27,7 @@ export const StudentHealth: React.FC = () => {
 
   // Handle breathing 4-7-8 timer
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (breathingActive) {
       setBreathPhase("inhale");
       setBreathTimer(4);
@@ -104,8 +104,9 @@ export const StudentHealth: React.FC = () => {
     const height = 150;
     const padding = 20;
 
-    const points = data.slice(-10).map((item, idx) => {
-      const x = padding + (idx * (width - padding * 2)) / 9;
+    const recent = data.slice(-10);
+    const points = recent.map((item, idx) => {
+      const x = padding + (idx * (width - padding * 2)) / (recent.length - 1);
       const val = item[key];
       // Normalize y to fit height
       const y = height - padding - ((val - minVal) / (maxVal - minVal)) * (height - padding * 2);

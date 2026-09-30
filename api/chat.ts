@@ -8,9 +8,12 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { message, lang = "id", history = [] } = req.body;
+  // req.body is undefined (or a raw string) when the request has no JSON content type
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const { message, lang = "id" } = body;
+  const history = Array.isArray(body.history) ? body.history : [];
 
-  if (!message) {
+  if (!message || typeof message !== "string") {
     return res.status(400).json({ error: "Message is required." });
   }
 

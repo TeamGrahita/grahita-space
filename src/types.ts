@@ -41,6 +41,7 @@ export interface CounselorNote {
 
 export interface ConsultationBooking {
   id: string;
+  studentUsername?: string;
   expertName: string;
   date: string;
   time: string;

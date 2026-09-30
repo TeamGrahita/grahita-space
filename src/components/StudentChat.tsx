@@ -57,6 +57,11 @@ export const StudentChat: React.FC = () => {
       timestamp: new Date().toISOString()
     };
 
+    // Prior turns for context; skip the local welcome greeting so the conversation starts with the user
+    const history = messages
+      .filter(m => m.id !== "welcome")
+      .map(m => ({ sender: m.sender, text: m.text }));
+
     setMessages(prev => [...prev, userMsg]);
     setInputText("");
     setIsTyping(true);
@@ -68,20 +73,22 @@ export const StudentChat: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
-          language: lang
+          lang,
+          history
         })
       });
 
-      if (!response.ok) {
+      // The API returns a friendly fallback text even on server errors, so use it when present
+      const data = await response.json().catch(() => null);
+      const replyText = data?.response || data?.reply;
+      if (!replyText) {
         throw new Error("API server-side error");
       }
 
-      const data = await response.json();
-      
       const graphiteMsg: Message = {
         id: `msg-${Date.now() + 1}`,
         sender: "graphite",
-        text: data.response || data.reply || "Error connecting to AI",
+        text: replyText,
         timestamp: new Date().toISOString()
       };
 

@@ -23,6 +23,7 @@ export interface TranslationDictionary {
     siswa: string;
     guru_bk: string;
     orang_tua: string;
+    admin: string;
   };
   status: {
     optimal: string;
@@ -205,6 +206,7 @@ export const translations: Record<"id" | "en", TranslationDictionary> = {
       siswa: "Siswa",
       guru_bk: "Guru BK (Konselor)",
       orang_tua: "Orang Tua",
+      admin: "Administrator",
     },
     status: {
       optimal: "Optimal",
@@ -385,6 +387,7 @@ export const translations: Record<"id" | "en", TranslationDictionary> = {
       siswa: "Student",
       guru_bk: "Counselor (Guru BK)",
       orang_tua: "Parent",
+      admin: "Administrator",
     },
     status: {
       optimal: "Optimal",
