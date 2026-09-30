@@ -35,7 +35,8 @@ function getAiClient() {
 
 // AI Chat Endpoint
 app.post("/api/chat", async (req, res) => {
-  const { message, lang = "id", history = [] } = req.body;
+  const { message, history = [] } = req.body ?? {};
+  const lang = req.body?.lang ?? req.body?.language ?? "id";
 
   if (!message) {
     return res.status(400).json({ error: "Message is required." });
@@ -71,10 +72,16 @@ PANDUAN:
 
   try {
     // Format conversation history for Gemini API
-    const contents = history.map((h: any) => ({
-      role: h.sender === "user" ? "user" : "model",
-      parts: [{ text: h.text }]
-    }));
+    // Gemini requires non-empty text parts and a conversation that starts with a user turn
+    const turns = (Array.isArray(history) ? history : [])
+      .filter((h: any) => typeof h?.text === "string" && h.text.trim())
+      .slice(-20)
+      .map((h: any) => ({
+        role: h.sender === "user" ? "user" : "model",
+        parts: [{ text: h.text }]
+      }));
+    const firstUser = turns.findIndex((t: any) => t.role === "user");
+    const contents = firstUser === -1 ? [] : turns.slice(firstUser);
     
     // Add current user message
     contents.push({
@@ -83,7 +90,7 @@ PANDUAN:
     });
 
     const response = await client.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: process.env.GEMINI_MODEL || "gemini-flash-latest",
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
@@ -100,7 +107,12 @@ PANDUAN:
       : "Saya mengalami sedikit gangguan teknis, tetapi ingat: bernapas dalam-dalam (aturan 4-7-8) adalah cara yang terbukti secara ilmiah untuk menenangkan sistem saraf Anda. Cobalah untuk rileks dan pejamkan mata sejenak.";
     
     const finalReply = `${errText}\n\nDisclaimer: I am an AI assistant and not a replacement for a licensed psychologist, psychiatrist, or school counselor (Guru BK). If you are experiencing severe distress, please contact a professional or visit the Guru BK room.`;
-    return res.json({ response: finalReply, reply: finalReply });
+    return res.status(502).json({
+      response: finalReply,
+      reply: finalReply,
+      error: error?.message || String(error),
+      status: error?.status
+    });
   }
 });
 

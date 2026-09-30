@@ -68,15 +68,20 @@ export const StudentChat: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
-          language: lang
+          lang,
+          // Previous turns (excluding the local welcome bubble) so Graphite keeps context
+          history: messages
+            .filter(m => m.id !== "welcome" && !m.id.startsWith("msg-err-"))
+            .map(({ sender, text }) => ({ sender, text }))
         })
       });
 
-      if (!response.ok) {
-        throw new Error("API server-side error");
-      }
+      const data = await response.json().catch(() => null);
 
-      const data = await response.json();
+      if (!response.ok) {
+        console.error("Graphite API error:", response.status, data?.error ?? data);
+        if (!data?.response) throw new Error(`API error ${response.status}`);
+      }
       
       const graphiteMsg: Message = {
         id: `msg-${Date.now() + 1}`,

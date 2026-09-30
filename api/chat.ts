@@ -8,7 +8,8 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { message, lang = "id", history = [] } = req.body;
+  const { message, history = [] } = req.body ?? {};
+  const lang = req.body?.lang ?? req.body?.language ?? "id";
 
   if (!message) {
     return res.status(400).json({ error: "Message is required." });
@@ -46,10 +47,16 @@ PANDUAN:
     const client = new GoogleGenAI({ apiKey });
 
     // Format conversation history for Gemini API
-    const contents = history.map((h: any) => ({
-      role: h.sender === "user" ? "user" : "model",
-      parts: [{ text: h.text }]
-    }));
+    // Gemini requires non-empty text parts and a conversation that starts with a user turn
+    const turns = (Array.isArray(history) ? history : [])
+      .filter((h: any) => typeof h?.text === "string" && h.text.trim())
+      .slice(-20)
+      .map((h: any) => ({
+        role: h.sender === "user" ? "user" : "model",
+        parts: [{ text: h.text }]
+      }));
+    const firstUser = turns.findIndex((t: any) => t.role === "user");
+    const contents = firstUser === -1 ? [] : turns.slice(firstUser);
 
     // Add current user message
     contents.push({
@@ -58,7 +65,7 @@ PANDUAN:
     });
 
     const response = await client.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: process.env.GEMINI_MODEL || "gemini-flash-latest",
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
@@ -76,6 +83,11 @@ PANDUAN:
     const errText = isEn
       ? "I experienced a minor glitch, but remember: breathing deeply (4-7-8 rule) is a scientifically proven way to calm your nervous system.\n\nDisclaimer: I am an AI assistant and not a replacement for a licensed psychologist, psychiatrist, or school counselor (Guru BK)."
       : "Saya mengalami sedikit gangguan teknis. Ingat: bernapas dalam-dalam (aturan 4-7-8) adalah cara yang terbukti untuk menenangkan sistem saraf Anda.\n\nDisclaimer: Saya adalah asisten AI dan bukan pengganti psikolog, psikiater, atau Guru BK berlisensi.";
-    return res.status(500).json({ response: errText, reply: errText });
+    return res.status(502).json({
+      response: errText,
+      reply: errText,
+      error: error?.message || String(error),
+      status: error?.status
+    });
   }
 }
