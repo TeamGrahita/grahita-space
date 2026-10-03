@@ -1,5 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
+const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
+
 // Vercel serverless function for Graphite AI Assistant
 // Replaces the Express /api/chat endpoint from server.ts
 export default async function handler(req: any, res: any) {
@@ -18,6 +20,8 @@ export default async function handler(req: any, res: any) {
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
+  // Override in the environment when Google retires a model; the alias tracks the newest Flash model
+  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const isEn = lang === "en";
 
   // System instruction for the Graphite AI assistant
@@ -61,7 +65,7 @@ PANDUAN:
     });
 
     const response = await client.models.generateContent({
-      model: "gemini-2.0-flash",
+      model,
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
@@ -75,7 +79,7 @@ PANDUAN:
 
     return res.json({ response: reply, reply });
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    console.error(`Gemini API Error (model "${model}"):`, error);
     const errText = isEn
       ? "I experienced a minor glitch, but remember: breathing deeply (4-7-8 rule) is a scientifically proven way to calm your nervous system.\n\nDisclaimer: I am an AI assistant and not a replacement for a licensed psychologist, psychiatrist, or school counselor (Guru BK)."
       : "Saya mengalami sedikit gangguan teknis. Ingat: bernapas dalam-dalam (aturan 4-7-8) adalah cara yang terbukti untuk menenangkan sistem saraf Anda.\n\nDisclaimer: Saya adalah asisten AI dan bukan pengganti psikolog, psikiater, atau Guru BK berlisensi.";
