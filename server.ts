@@ -9,6 +9,9 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+// Override with GEMINI_MODEL when Google retires a model; the alias tracks the newest Flash model
+const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
+
 app.use(express.json());
 
 // Initialize Gemini SDK lazily to prevent crash on startup if key is missing
@@ -43,6 +46,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   const client = getAiClient();
+  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 
   // Language instructions
   const isEn = lang === "en";
@@ -84,7 +88,7 @@ PANDUAN:
     });
 
     const response = await client.models.generateContent({
-      model: "gemini-2.0-flash",
+      model,
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
@@ -95,7 +99,7 @@ PANDUAN:
     const reply = response.text || (isEn ? "I'm here to support you. Let's take a deep breath." : "Saya di sini untuk mendukungmu. Mari tarik napas dalam-dalam.");
     return res.json({ response: reply, reply: reply });
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    console.error(`Gemini API Error (model "${model}"):`, error);
     const errText = isEn
       ? "I experienced a minor glitch connecting to my neural core, but remember: breathing deeply (4-7-8 rule) is a scientifically proven way to calm your nervous system. Try to relax and close your eyes for a moment."
       : "Saya mengalami sedikit gangguan teknis, tetapi ingat: bernapas dalam-dalam (aturan 4-7-8) adalah cara yang terbukti secara ilmiah untuk menenangkan sistem saraf Anda. Cobalah untuk rileks dan pejamkan mata sejenak.";
