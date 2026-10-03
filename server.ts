@@ -12,6 +12,43 @@ const PORT = 3000;
 // Override with GEMINI_MODEL when Google retires a model; the alias tracks the newest Flash model
 const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
 
+// Fallbacks are tried when the main model is overloaded (503), rate limited (429) or retired (404)
+const DEFAULT_GEMINI_FALLBACK_MODELS = "gemini-flash-lite-latest";
+const RETRY_DELAY_MS = 800;
+
+function geminiModels(): string[] {
+  const primary = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const fallbacks = (process.env.GEMINI_FALLBACK_MODELS ?? DEFAULT_GEMINI_FALLBACK_MODELS)
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  return [...new Set([primary, ...fallbacks])];
+}
+
+// Retries a temporarily unavailable model once, then moves on to the next model.
+// Errors another model cannot fix (bad request, invalid key) are thrown right away.
+async function generateWithFallback(client: GoogleGenAI, request: Omit<Parameters<GoogleGenAI["models"]["generateContent"]>[0], "model">) {
+  let lastError: any;
+  for (const model of geminiModels()) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        return await client.models.generateContent({ ...request, model });
+      } catch (error: any) {
+        lastError = error;
+        const status = error?.status;
+        console.warn(`Gemini model "${model}" attempt ${attempt} failed with status ${status ?? "unknown"}`);
+        if (status === 400 || status === 401 || status === 403) throw error;
+        if ((status === 500 || status === 503 || status === 504) && attempt === 1) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+          continue;
+        }
+        break;
+      }
+    }
+  }
+  throw lastError;
+}
+
 app.use(express.json());
 
 // Initialize Gemini SDK lazily to prevent crash on startup if key is missing
@@ -46,7 +83,6 @@ app.post("/api/chat", async (req, res) => {
   }
 
   const client = getAiClient();
-  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 
   // Language instructions
   const isEn = lang === "en";
@@ -87,8 +123,7 @@ PANDUAN:
       parts: [{ text: message }]
     });
 
-    const response = await client.models.generateContent({
-      model,
+    const response = await generateWithFallback(client, {
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
@@ -99,7 +134,13 @@ PANDUAN:
     const reply = response.text || (isEn ? "I'm here to support you. Let's take a deep breath." : "Saya di sini untuk mendukungmu. Mari tarik napas dalam-dalam.");
     return res.json({ response: reply, reply: reply });
   } catch (error: any) {
-    console.error(`Gemini API Error (model "${model}"):`, error);
+    console.error(`Gemini API Error (models ${geminiModels().join(", ")}):`, error);
+    if (error?.status === 503 || error?.status === 429) {
+      const busyText = isEn
+        ? "Graphite is receiving a lot of requests right now. Please try again in a few seconds. Meanwhile, try breathing in for 4 seconds, holding for 7, and exhaling for 8.\n\nDisclaimer: I am an AI assistant and not a replacement for a licensed psychologist, psychiatrist, or school counselor (Guru BK)."
+        : "Graphite sedang menerima banyak permintaan. Coba kirim lagi dalam beberapa detik ya. Sambil menunggu, coba tarik napas 4 detik, tahan 7 detik, lalu hembuskan 8 detik.\n\nDisclaimer: Saya adalah asisten AI dan bukan pengganti psikolog, psikiater, atau Guru BK berlisensi.";
+      return res.json({ response: busyText, reply: busyText });
+    }
     const errText = isEn
       ? "I experienced a minor glitch connecting to my neural core, but remember: breathing deeply (4-7-8 rule) is a scientifically proven way to calm your nervous system. Try to relax and close your eyes for a moment."
       : "Saya mengalami sedikit gangguan teknis, tetapi ingat: bernapas dalam-dalam (aturan 4-7-8) adalah cara yang terbukti secara ilmiah untuk menenangkan sistem saraf Anda. Cobalah untuk rileks dan pejamkan mata sejenak.";
